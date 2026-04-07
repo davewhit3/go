@@ -216,14 +216,20 @@ func EndPos(n Node) Pos {
 				continue
 			}
 			m = n.Fun
-		case *ListExpr:
-			if l := lastExpr(n.ElemList); l != nil {
-				m = l
-				continue
-			}
-			return n.Pos()
+	case *ListExpr:
+		if l := lastExpr(n.ElemList); l != nil {
+			m = l
+			continue
+		}
+		return n.Pos()
+	case *InterpolatedString:
+		if l := lastExpr(n.Parts); l != nil {
+			m = l
+			continue
+		}
+		return n.Pos()
 
-		// types
+	// types
 		case *ArrayType:
 			m = n.Elem
 		case *SliceType:

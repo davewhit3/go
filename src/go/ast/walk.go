@@ -134,6 +134,9 @@ func Walk(v Visitor, node Node) {
 		Walk(v, n.Key)
 		Walk(v, n.Value)
 
+	case *InterpolatedStringExpr:
+		walkList(v, n.Parts)
+
 	// Types
 	case *ArrayType:
 		if n.Len != nil {

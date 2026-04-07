@@ -2551,6 +2551,21 @@ func (r *reader) expr() (res ir.Node) {
 	case exprRuntimeBuiltin:
 		builtin := typecheck.LookupRuntime(r.String())
 		return builtin
+
+	case exprInterp:
+		pos := r.pos()
+		nparts := r.Len()
+		parts := make([]ir.Node, nparts)
+		for i := range parts {
+			parts[i] = r.expr()
+		}
+		if len(parts) == 1 {
+			return parts[0]
+		}
+		n := ir.NewAddStringExpr(pos, parts)
+		n.SetType(types.Types[types.TSTRING])
+		n.SetTypecheck(1)
+		return n
 	}
 }
 

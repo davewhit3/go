@@ -1033,6 +1033,14 @@ func (p *printer) expr1(expr ast.Expr, prec1, depth int) {
 		p.print(token.RBRACE, mode)
 		p.level--
 
+	case *ast.InterpolatedStringExpr:
+		for i, part := range x.Parts {
+			if i > 0 {
+				p.print(blank, token.ADD, blank)
+			}
+			p.expr(part)
+		}
+
 	case *ast.Ellipsis:
 		p.print(token.ELLIPSIS)
 		if x.Elt != nil {

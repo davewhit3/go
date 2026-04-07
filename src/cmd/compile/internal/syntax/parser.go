@@ -1009,7 +1009,13 @@ func (p *parser) operand(keep_parens bool) Expr {
 		return p.name()
 
 	case _Literal:
-		return p.oliteral()
+		lit := p.oliteral()
+		if lit != nil && lit.Kind == StringLit && !lit.Bad {
+			if interp := p.parseInterpolatedString(lit); interp != nil {
+				return interp
+			}
+		}
+		return lit
 
 	case _Lparen:
 		pos := p.pos()
@@ -1250,7 +1256,7 @@ loop:
 // isValue reports whether x syntactically must be a value (and not a type) expression.
 func isValue(x Expr) bool {
 	switch x := x.(type) {
-	case *BasicLit, *CompositeLit, *FuncLit, *SliceExpr, *AssertExpr, *TypeSwitchGuard, *CallExpr:
+	case *BasicLit, *CompositeLit, *FuncLit, *SliceExpr, *AssertExpr, *TypeSwitchGuard, *CallExpr, *InterpolatedString:
 		return true
 	case *Operation:
 		return x.Op != Mul || x.Y != nil // *T may be a type
@@ -1744,6 +1750,188 @@ func (p *parser) oliteral() *BasicLit {
 		return b
 	}
 	return nil
+}
+
+func (p *parser) parseInterpolatedString(lit *BasicLit) Expr {
+	val := lit.Value
+	if len(val) < 2 || val[0] != '"' {
+		return nil
+	}
+
+	inner := val[1 : len(val)-1]
+
+	if !strings.Contains(inner, "%{") {
+		return nil
+	}
+
+	var fmtBuf strings.Builder
+	var args []Expr
+	pos := lit.Pos()
+	remaining := inner
+
+	for len(remaining) > 0 {
+		idx := strings.Index(remaining, "%{")
+		if idx < 0 {
+			fmtBuf.WriteString(strings.ReplaceAll(remaining, "%", "%%"))
+			break
+		}
+
+		fmtBuf.WriteString(strings.ReplaceAll(remaining[:idx], "%", "%%"))
+		remaining = remaining[idx+2:]
+
+		endIdx := findMatchingBrace(remaining)
+		if endIdx < 0 {
+			return nil
+		}
+
+		content := strings.TrimSpace(remaining[:endIdx])
+		remaining = remaining[endIdx+1:]
+
+		if len(content) == 0 {
+			return nil
+		}
+
+		exprStr, format := splitInterpExprAndFormat(content)
+		exprStr = strings.TrimSpace(exprStr)
+
+		expr, ok := p.tryParseEmbeddedExpr(exprStr)
+		if !ok {
+			return nil
+		}
+		args = append(args, expr)
+		fmtBuf.WriteString("%" + format)
+	}
+
+	if len(args) == 0 {
+		return nil
+	}
+
+	fmtName := new(Name)
+	fmtName.pos = pos
+	fmtName.Value = "fmt"
+
+	sel := new(SelectorExpr)
+	sel.pos = pos
+	sel.X = fmtName
+	sel.Sel = &Name{Value: "Sprintf"}
+	sel.Sel.pos = pos
+
+	fmtLit := new(BasicLit)
+	fmtLit.pos = pos
+	fmtLit.Value = `"` + fmtBuf.String() + `"`
+	fmtLit.Kind = StringLit
+
+	call := new(CallExpr)
+	call.pos = pos
+	call.Fun = sel
+	call.ArgList = make([]Expr, 1+len(args))
+	call.ArgList[0] = fmtLit
+	copy(call.ArgList[1:], args)
+
+	return call
+}
+
+func splitInterpExprAndFormat(s string) (expr string, format string) {
+	depth := 0
+	inString := false
+	inRune := false
+	escaped := false
+	lastColon := -1
+	for i := 0; i < len(s); i++ {
+		ch := s[i]
+		if escaped {
+			escaped = false
+			continue
+		}
+		if ch == '\\' && (inString || inRune) {
+			escaped = true
+			continue
+		}
+		if ch == '"' && !inRune {
+			inString = !inString
+			continue
+		}
+		if ch == '\'' && !inString {
+			inRune = !inRune
+			continue
+		}
+		if inString || inRune {
+			continue
+		}
+		switch ch {
+		case '(', '[', '{':
+			depth++
+		case ')', ']', '}':
+			depth--
+		case ':':
+			if depth == 0 {
+				lastColon = i
+			}
+		}
+	}
+	if lastColon < 0 {
+		return s, "v"
+	}
+	return s[:lastColon], s[lastColon+1:]
+}
+
+func findMatchingBrace(s string) int {
+	depth := 0
+	inString := false
+	inRune := false
+	escaped := false
+	for i := 0; i < len(s); i++ {
+		ch := s[i]
+		if escaped {
+			escaped = false
+			continue
+		}
+		if ch == '\\' && (inString || inRune) {
+			escaped = true
+			continue
+		}
+		if ch == '"' && !inRune {
+			inString = !inString
+			continue
+		}
+		if ch == '\'' && !inString {
+			inRune = !inRune
+			continue
+		}
+		if inString || inRune {
+			continue
+		}
+		if ch == '{' {
+			depth++
+		} else if ch == '}' {
+			if depth == 0 {
+				return i
+			}
+			depth--
+		}
+	}
+	return -1
+}
+
+func (p *parser) tryParseEmbeddedExpr(src string) (Expr, bool) {
+	var parseErr bool
+	file, err := Parse(nil, strings.NewReader("package p\nvar _ = "+src), func(err error) {
+		parseErr = true
+	}, nil, 0)
+	if err != nil || parseErr {
+		return nil, false
+	}
+	if len(file.DeclList) == 0 {
+		return nil, false
+	}
+	vd, ok := file.DeclList[0].(*VarDecl)
+	if !ok || vd.Values == nil {
+		return nil, false
+	}
+	if _, bad := vd.Values.(*BadExpr); bad {
+		return nil, false
+	}
+	return vd.Values, true
 }
 
 // MethodSpec        = MethodName Signature | InterfaceTypeName .

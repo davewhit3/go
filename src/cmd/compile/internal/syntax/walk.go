@@ -170,6 +170,9 @@ func (w walker) node(n Node) {
 	case *ListExpr:
 		w.exprList(n.ElemList)
 
+	case *InterpolatedString:
+		w.exprList(n.Parts)
+
 	// types
 	case *ArrayType:
 		if n.Len != nil {
