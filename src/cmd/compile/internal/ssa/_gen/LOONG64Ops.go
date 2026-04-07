@@ -169,6 +169,7 @@ func init() {
 		{name: "SQRTD", argLength: 1, reg: fp11, asm: "SQRTD"}, // sqrt(arg0), float64
 		{name: "SQRTF", argLength: 1, reg: fp11, asm: "SQRTF"}, // sqrt(arg0), float32
 
+		{name: "ABSF", argLength: 1, reg: fp11, asm: "ABSF"}, // abs(arg0), float32
 		{name: "ABSD", argLength: 1, reg: fp11, asm: "ABSD"}, // abs(arg0), float64
 
 		{name: "CLZW", argLength: 1, reg: gp11, asm: "CLZW"}, // Count leading (high order) zeroes (returns 0-32)
@@ -361,6 +362,7 @@ func init() {
 		// function calls
 		{name: "CALLstatic", argLength: -1, reg: regInfo{clobbers: callerSave}, aux: "CallOff", clobberFlags: true, call: true},                                               // call static function aux.(*obj.LSym).  last arg=mem, auxint=argsize, returns mem
 		{name: "CALLtail", argLength: -1, reg: regInfo{clobbers: callerSave}, aux: "CallOff", clobberFlags: true, call: true, tailCall: true},                                 // tail call static function aux.(*obj.LSym).  last arg=mem, auxint=argsize, returns mem
+		{name: "CALLtailinter", argLength: -1, reg: regInfo{inputs: []regMask{gp}, clobbers: callerSave}, aux: "CallOff", clobberFlags: true, call: true, tailCall: true},     // tail call fn by pointer.  arg0=codeptr, last arg=mem, auxint=argsize, returns mem
 		{name: "CALLclosure", argLength: -1, reg: regInfo{inputs: []regMask{gpsp, buildReg("R29"), 0}, clobbers: callerSave}, aux: "CallOff", clobberFlags: true, call: true}, // call function via closure.  arg0=codeptr, arg1=closure, last arg=mem, auxint=argsize, returns mem
 		{name: "CALLinter", argLength: -1, reg: regInfo{inputs: []regMask{gp}, clobbers: callerSave}, aux: "CallOff", clobberFlags: true, call: true},                         // call fn by pointer.  arg0=codeptr, last arg=mem, auxint=argsize, returns mem
 
@@ -408,8 +410,8 @@ func init() {
 			aux:       "Int64",
 			argLength: 3,
 			reg: regInfo{
-				inputs:   []regMask{gp &^ buildReg("R20"), gp &^ buildReg("R20")},
-				clobbers: buildReg("R20"),
+				inputs:   []regMask{gp &^ buildReg("R23"), gp &^ buildReg("R23")},
+				clobbers: buildReg("R23"),
 			},
 			faultOnNilArg0: true,
 			faultOnNilArg1: true,
@@ -426,8 +428,8 @@ func init() {
 			aux:       "Int64",
 			argLength: 3,
 			reg: regInfo{
-				inputs:       []regMask{gp &^ buildReg("R20 R21"), gp &^ buildReg("R20 R21")},
-				clobbers:     buildReg("R20 R21"),
+				inputs:       []regMask{gp &^ buildReg("R23 R24"), gp &^ buildReg("R23 R24")},
+				clobbers:     buildReg("R23 R24"),
 				clobbersArg0: true,
 				clobbersArg1: true,
 			},

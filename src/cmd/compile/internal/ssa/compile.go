@@ -500,8 +500,10 @@ var passes = [...]pass{
 	{name: "tighten tuple selectors", fn: tightenTupleSelectors, required: true},
 	{name: "lowered deadcode", fn: deadcode, required: true},
 	{name: "checkLower", fn: checkLower, required: true},
+	{name: "loop invariant", fn: licm},
 	{name: "late phielim and copyelim", fn: copyelim},
-	{name: "tighten", fn: tighten, required: true}, // move values closer to their uses
+	{name: "tighten", fn: tighten, required: true},                     // move values closer to their uses
+	{name: "merge conditional branches", fn: mergeConditionalBranches}, // generate conditional comparison instructions on ARM64 architecture
 	{name: "late deadcode", fn: deadcode},
 	{name: "critical", fn: critical, required: true}, // remove critical edges
 	{name: "phi tighten", fn: phiTighten},            // place rematerializable phi args near uses to reduce value lifetimes

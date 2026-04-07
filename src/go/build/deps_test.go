@@ -54,7 +54,6 @@ var depsRules = `
 	  internal/goexperiment,
 	  internal/goos,
 	  internal/goversion,
-	  internal/itoa,
 	  internal/nettrace,
 	  internal/platform,
 	  internal/profilerecord,
@@ -84,7 +83,6 @@ var depsRules = `
 	internal/godebugs,
 	internal/goexperiment,
 	internal/goos,
-	internal/itoa,
 	internal/profilerecord,
 	internal/runtime/pprof/label,
 	internal/strconv,
@@ -291,7 +289,7 @@ var depsRules = `
 	# hashes
 	io
 	< hash
-	< hash/adler32, hash/crc32, hash/crc64, hash/fnv;
+	< hash/adler32, hash/crc32, hash/crc64, hash/fnv, hash/maphash;
 
 	# math/big
 	FMT, math/rand
@@ -342,7 +340,6 @@ var depsRules = `
 	< internal/gover
 	< go/version
 	< go/token
-	< go/internal/scannerhooks
 	< go/scanner
 	< go/ast
 	< go/internal/typeparams;
@@ -629,12 +626,12 @@ var depsRules = `
 	crypto/tls
 	< net/smtp;
 
-	crypto/rand
-	< hash/maphash; # for purego implementation
-
 	# HTTP, King of Dependencies.
 
-	FMT
+	context
+	< internal/gate;
+
+	FMT, encoding/binary
 	< golang.org/x/net/http2/hpack
 	< net/http/internal, net/http/internal/ascii, net/http/internal/testcert;
 
@@ -659,7 +656,8 @@ var depsRules = `
 	net/http/httptrace,
 	mime/multipart,
 	log
-	< net/http/internal/httpcommon
+	< net/http/internal/httpcommon, net/http/internal/httpsfv
+	< net/http/internal/http2
 	< net/http;
 
 	# HTTP-aware packages

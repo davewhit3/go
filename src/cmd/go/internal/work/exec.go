@@ -928,6 +928,12 @@ func (b *Builder) build(ctx context.Context, a *Action) (err error) {
 	// Compile Go.
 	objpkg := objdir + "_pkg_.a"
 	ofile, out, err := BuildToolchain.gc(b, a, objpkg, icfg.Bytes(), embedcfg, symabis, len(sfiles) > 0, pgoProfile, gofiles)
+	if len(out) > 0 && (p.UsesCgo() || p.UsesSwig()) && !cfg.BuildX {
+		// Fix up output referring to cgo-generated code to be more readable.
+		// Replace *[100]_Ctype_foo with *[100]C.foo.
+		// If we're using -x, assume we're debugging and want the full dump, so disable the rewrite.
+		out = cgoTypeSigRe.ReplaceAll(out, []byte("C."))
+	}
 	if err := sh.reportCmd("", "", out, err); err != nil {
 		return err
 	}
@@ -1032,6 +1038,8 @@ func (b *Builder) build(ctx context.Context, a *Action) (err error) {
 	a.built = objpkg
 	return nil
 }
+
+var cgoTypeSigRe = lazyregexp.New(`\b_C2?(type|func|var|macro)_\B`)
 
 func (b *Builder) checkDirectives(a *Action) error {
 	var msg []byte
@@ -1789,10 +1797,7 @@ func (b *Builder) getPkgConfigFlags(a *Action, p *load.Package) (cflags, ldflags
 			}
 		}
 
-		// Running 'pkg-config' can cause execution of
-		// arbitrary code using flags that are not in
-		// the safelist.
-		if err := checkCompilerFlags("CFLAGS", "pkg-config --cflags", pcflags); err != nil {
+		if err := checkPkgConfigFlags("", "pkg-config", pcflags); err != nil {
 			return nil, nil, err
 		}
 
@@ -3326,7 +3331,7 @@ func (b *Builder) swig(a *Action, objdir string, pcCFLAGS []string) error {
 		}
 	}
 	for _, f := range p.SwigCXXFiles {
-		if b.swigOne(a, f, objdir, pcCFLAGS, true, intgosize); err != nil {
+		if err := b.swigOne(a, f, objdir, pcCFLAGS, true, intgosize); err != nil {
 			return err
 		}
 	}
@@ -3644,7 +3649,7 @@ func useResponseFile(path string, argLen int) bool {
 	// TODO: Note that other toolchains like CC are missing here for now.
 	prog := strings.TrimSuffix(filepath.Base(path), ".exe")
 	switch prog {
-	case "compile", "link", "cgo", "asm", "cover":
+	case "compile", "link", "cgo", "asm", "cover", "pack":
 	default:
 		return false
 	}
@@ -3663,24 +3668,35 @@ func useResponseFile(path string, argLen int) bool {
 	return false
 }
 
-// encodeArg encodes an argument for response file writing.
+// encodeArg encodes an argument for response file writing using GCC-compatible format.
+// Arguments containing special characters are wrapped in double quotes with escapes.
 func encodeArg(arg string) string {
-	// If there aren't any characters we need to reencode, fastpath out.
-	if !strings.ContainsAny(arg, "\\\n") {
+	// Empty string must be quoted to preserve it.
+	if arg == "" {
+		return `""`
+	}
+	// If no special characters, return as-is.
+	if !strings.ContainsAny(arg, " \t\n\r'\"\\$`") {
 		return arg
 	}
+
+	// Use double quotes and escape special chars.
 	var b strings.Builder
+	b.WriteByte('"')
 	for _, r := range arg {
 		switch r {
 		case '\\':
-			b.WriteByte('\\')
-			b.WriteByte('\\')
-		case '\n':
-			b.WriteByte('\\')
-			b.WriteByte('n')
+			b.WriteString(`\\`)
+		case '"':
+			b.WriteString(`\"`)
+		case '$':
+			b.WriteString(`\$`)
+		case '`':
+			b.WriteString("\\`")
 		default:
 			b.WriteRune(r)
 		}
 	}
+	b.WriteByte('"')
 	return b.String()
 }

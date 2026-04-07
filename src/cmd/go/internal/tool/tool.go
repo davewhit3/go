@@ -40,7 +40,14 @@ var CmdTool = &base.Command{
 Tool runs the go tool command identified by the arguments.
 
 Go ships with a number of builtin tools, and additional tools
-may be defined in the go.mod of the current module.
+may be defined in the go.mod of the current module. 'go get -tool'
+can be used to define additional tools in the current module's
+go.mod file. See 'go help get' for more information.
+
+The command can be specified using the full package path to the tool declared with
+a tool directive. The default binary name of the tool, which is the last component of
+the package path, excluding the major version suffix, can also be used if it is unique
+among declared tools.
 
 With no arguments it prints the list of known tools.
 
@@ -51,6 +58,10 @@ The -modfile=file.mod build flag causes tool to use an alternate file
 instead of the go.mod in the module root directory.
 
 Tool also provides the -C, -overlay, and -modcacherw build flags.
+
+The go command places $GOROOT/bin at the beginning of $PATH in the
+environment of commands run via tool directives, so that they use the
+same 'go' as the parent 'go tool'.
 
 For more about build flags, see 'go help build'.
 
@@ -148,8 +159,11 @@ func listTools(loaderstate *modload.State, ctx context.Context) {
 		return
 	}
 
+	ambiguous := make(map[string]bool) // names that can't be used as aliases because they are ambiguous
 	sort.Strings(names)
 	for _, name := range names {
+		ambiguous[name] = true
+
 		// Unify presentation by going to lower case.
 		// If it's windows, don't show the .exe suffix.
 		name = strings.TrimSuffix(strings.ToLower(name), cfg.ToolExeSuffix())
@@ -165,7 +179,23 @@ func listTools(loaderstate *modload.State, ctx context.Context) {
 	loaderstate.InitWorkfile()
 	modload.LoadModFile(loaderstate, ctx)
 	modTools := slices.Sorted(maps.Keys(loaderstate.MainModules.Tools()))
+	seen := make(map[string]bool) // aliases we've seen already
 	for _, tool := range modTools {
+		alias := defaultExecName(tool)
+		switch {
+		case ambiguous[alias]:
+			continue
+		case seen[alias]:
+			ambiguous[alias] = true
+		default:
+			seen[alias] = true
+		}
+	}
+	for _, tool := range modTools {
+		if alias := defaultExecName(tool); !ambiguous[alias] {
+			fmt.Printf("%s (%s)\n", alias, tool)
+			continue
+		}
 		fmt.Println(tool)
 	}
 }
