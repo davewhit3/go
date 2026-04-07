@@ -228,7 +228,6 @@ func preserveStmt(curFn *ir.Func, stmt ir.Node) ir.Node {
 		}
 		return keepAliveAt(getKeepAliveNodes(n.Pos(), n.X), n)
 	case *ir.AssignListStmt:
-<<<<<<< HEAD
 		ns := []ir.Node{}
 		for _, lhs := range n.Lhs {
 			name := getAddressableNameFromNode(lhs)
@@ -339,26 +338,6 @@ func preserveStmt(curFn *ir.Func, stmt ir.Node) ir.Node {
 					if base.Flag.LowerM > 1 {
 						base.WarnfAt(n.Pos(), "function arg will be kept alive")
 					}
-=======
-		var ns ir.Nodes
-		hasBlank := false
-		for i, lhs := range n.Lhs {
-			if ir.IsBlank(lhs) {
-				// If the left hand side has blanks, we need to assign them to temps
-				// so that they can be kept alive.
-				var typ *types.Type
-				// AssignListStmt can have tuple or a list of expressions on the right hand side.
-				if len(n.Rhs) == 1 && n.Rhs[0].Type() != nil &&
-					n.Rhs[0].Type().IsTuple() &&
-					len(n.Lhs) == n.Rhs[0].Type().NumFields() {
-					typ = n.Rhs[0].Type().Field(i).Type
-				} else if len(n.Rhs) == len(n.Lhs) {
-					typ = n.Rhs[i].Type()
-				} else {
-					// Unrecognized shapes, skip?
-					base.WarnfAt(n.Pos(), "unrecognized shape for assign list stmt for blank assignment")
-					continue
->>>>>>> a415314c0bdec971ecd503471c804ec0208c6a2b
 				}
 				tmp := typecheck.TempAt(n.Pos(), curFn, typ)
 				n.Lhs[i] = tmp
