@@ -1481,6 +1481,11 @@ func (p *parser) parseOperand() ast.Expr {
 	case token.INT, token.FLOAT, token.IMAG, token.CHAR, token.STRING:
 		x := &ast.BasicLit{ValuePos: p.pos, ValueEnd: p.end(), Kind: p.tok, Value: p.lit}
 		p.next()
+		if x.Kind == token.STRING {
+			if interp := p.parseInterpolatedString(x); interp != nil {
+				return interp
+			}
+		}
 		return x
 
 	case token.LPAREN:
@@ -1508,6 +1513,115 @@ func (p *parser) parseOperand() ast.Expr {
 	p.errorExpected(pos, "operand")
 	p.advance(stmtStart)
 	return &ast.BadExpr{From: pos, To: p.pos}
+}
+
+func (p *parser) parseInterpolatedString(lit *ast.BasicLit) *ast.InterpolatedStringExpr {
+	val := lit.Value
+	if len(val) < 2 || val[0] != '"' {
+		return nil
+	}
+
+	quote := val[0:1]
+	inner := val[1 : len(val)-1]
+
+	if !strings.Contains(inner, "%{") {
+		return nil
+	}
+
+	var parts []ast.Expr
+	remaining := inner
+
+	for len(remaining) > 0 {
+		idx := strings.Index(remaining, "%{")
+		if idx < 0 {
+			seg := &ast.BasicLit{
+				ValuePos: lit.ValuePos,
+				Kind:     token.STRING,
+				Value:    quote + remaining + quote,
+			}
+			parts = append(parts, seg)
+			break
+		}
+
+		if idx > 0 {
+			seg := &ast.BasicLit{
+				ValuePos: lit.ValuePos,
+				Kind:     token.STRING,
+				Value:    quote + remaining[:idx] + quote,
+			}
+			parts = append(parts, seg)
+		}
+
+		remaining = remaining[idx+2:]
+
+		endIdx := interpFindMatchingBrace(remaining)
+		if endIdx < 0 {
+			return nil
+		}
+
+		exprStr := strings.TrimSpace(remaining[:endIdx])
+		remaining = remaining[endIdx+1:]
+
+		if len(exprStr) == 0 {
+			return nil
+		}
+
+		expr, err := ParseExprFrom(token.NewFileSet(), "", []byte(exprStr), 0)
+		if err != nil {
+			return nil
+		}
+		parts = append(parts, expr)
+	}
+
+	if len(parts) == 0 {
+		return nil
+	}
+
+	fmt.Printf("znalazłem interpolację %v\n", parts)
+
+	return &ast.InterpolatedStringExpr{
+		ValuePos: lit.ValuePos,
+		Parts:    parts,
+		ValueEnd: lit.ValueEnd,
+	}
+}
+
+func interpFindMatchingBrace(s string) int {
+	depth := 0
+	inString := false
+	inRune := false
+	escaped := false
+	for i := 0; i < len(s); i++ {
+		ch := s[i]
+		if escaped {
+			escaped = false
+			continue
+		}
+		if ch == '\\' && (inString || inRune) {
+			escaped = true
+			continue
+		}
+		if ch == '"' && !inRune {
+			inString = !inString
+			continue
+		}
+		if ch == '\'' && !inString {
+			inRune = !inRune
+			continue
+		}
+		if inString || inRune {
+			continue
+		}
+		if ch == '{' {
+			depth++
+		} else if ch == '}' {
+			if depth == 0 {
+				return i
+			}
+			depth--
+		}
+	}
+	return -1
 }
 
 func (p *parser) parseSelector(x ast.Expr) ast.Expr {

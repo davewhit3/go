@@ -1224,6 +1224,14 @@ func (check *Checker) exprInternal(T *target, x *operand, e syntax.Expr, hint Ty
 		check.error(e, InvalidSyntaxTree, "no key:value expected")
 		goto Error
 
+	case *syntax.InterpolatedString:
+		for _, part := range e.Parts {
+			var y operand
+			check.rawExpr(nil, &y, part, nil, false)
+		}
+		x.mode = value
+		x.typ = Typ[String]
+
 	case *syntax.ArrayType, *syntax.SliceType, *syntax.StructType, *syntax.FuncType,
 		*syntax.InterfaceType, *syntax.MapType, *syntax.ChanType:
 		x.mode_ = typexpr

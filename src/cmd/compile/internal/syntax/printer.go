@@ -454,6 +454,12 @@ func (p *printer) printRawNode(n Node) {
 	case *ListExpr:
 		p.printExprList(n.ElemList)
 
+	case *InterpolatedString:
+		p.print(_Name, "interp")
+		p.print(_Lparen)
+		p.printExprList(n.Parts)
+		p.print(_Rparen)
+
 	case *ArrayType:
 		var len any = _DotDotDot
 		if n.Len != nil {

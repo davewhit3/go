@@ -428,6 +428,16 @@ type (
 		Colon token.Pos // position of ":"
 		Value Expr
 	}
+
+	// An InterpolatedStringExpr node represents a string with embedded
+	// expressions using the %{expr} syntax.
+	// Parts is a mix of *BasicLit (string segments) and arbitrary Expr
+	// (interpolated expressions).
+	InterpolatedStringExpr struct {
+		ValuePos token.Pos // position of opening quote
+		Parts    []Expr    // alternating string literals and expressions
+		ValueEnd token.Pos // position after closing quote
+	}
 )
 
 // The direction of a channel type is indicated by a bit
@@ -513,8 +523,9 @@ func (x *CallExpr) Pos() token.Pos       { return x.Fun.Pos() }
 func (x *StarExpr) Pos() token.Pos       { return x.Star }
 func (x *UnaryExpr) Pos() token.Pos      { return x.OpPos }
 func (x *BinaryExpr) Pos() token.Pos     { return x.X.Pos() }
-func (x *KeyValueExpr) Pos() token.Pos   { return x.Key.Pos() }
-func (x *ArrayType) Pos() token.Pos      { return x.Lbrack }
+func (x *KeyValueExpr) Pos() token.Pos        { return x.Key.Pos() }
+func (x *InterpolatedStringExpr) Pos() token.Pos { return x.ValuePos }
+func (x *ArrayType) Pos() token.Pos              { return x.Lbrack }
 func (x *StructType) Pos() token.Pos     { return x.Struct }
 func (x *FuncType) Pos() token.Pos {
 	if x.Func.IsValid() || x.Params == nil { // see issue 3870
@@ -555,8 +566,9 @@ func (x *CallExpr) End() token.Pos       { return x.Rparen + 1 }
 func (x *StarExpr) End() token.Pos       { return x.X.End() }
 func (x *UnaryExpr) End() token.Pos      { return x.X.End() }
 func (x *BinaryExpr) End() token.Pos     { return x.Y.End() }
-func (x *KeyValueExpr) End() token.Pos   { return x.Value.End() }
-func (x *ArrayType) End() token.Pos      { return x.Elt.End() }
+func (x *KeyValueExpr) End() token.Pos        { return x.Value.End() }
+func (x *InterpolatedStringExpr) End() token.Pos { return x.ValueEnd }
+func (x *ArrayType) End() token.Pos              { return x.Elt.End() }
 func (x *StructType) End() token.Pos     { return x.Fields.End() }
 func (x *FuncType) End() token.Pos {
 	if x.Results != nil {
@@ -586,7 +598,8 @@ func (*CallExpr) exprNode()       {}
 func (*StarExpr) exprNode()       {}
 func (*UnaryExpr) exprNode()      {}
 func (*BinaryExpr) exprNode()     {}
-func (*KeyValueExpr) exprNode()   {}
+func (*KeyValueExpr) exprNode()        {}
+func (*InterpolatedStringExpr) exprNode() {}
 
 func (*ArrayType) exprNode()     {}
 func (*StructType) exprNode()    {}

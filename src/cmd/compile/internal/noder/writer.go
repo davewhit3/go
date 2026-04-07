@@ -2049,6 +2049,14 @@ func (w *writer) expr(expr syntax.Expr) {
 		w.pos(expr)
 		w.implicitConvExpr(commonType, expr.Y)
 
+	case *syntax.InterpolatedString:
+		w.Code(exprInterp)
+		w.pos(expr)
+		w.Len(len(expr.Parts))
+		for _, part := range expr.Parts {
+			w.expr(part)
+		}
+
 	case *syntax.CallExpr:
 		tv := w.p.typeAndValue(expr.Fun)
 		if tv.IsType() {

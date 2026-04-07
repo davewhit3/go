@@ -303,8 +303,13 @@ func (fd *FD) tryReadWriteLock() (bool, error) {
 // It also closes fd when the state of fd is set to closed and there
 // is no remaining reference.
 func (fd *FD) readWriteUnlock() {
+<<<<<<< HEAD
+	fd.fdmu.rwunlock(true)
+	if fd.fdmu.rwunlock(false) {
+=======
 	fd.fdmu.rwunlock(readlock)
 	if fd.fdmu.rwunlock(writeLock) {
+>>>>>>> a415314c0bdec971ecd503471c804ec0208c6a2b
 		fd.destroy()
 	}
 }

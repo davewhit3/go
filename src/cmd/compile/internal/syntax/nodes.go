@@ -249,6 +249,13 @@ type (
 		expr
 	}
 
+	// "text %{expr} text"
+	// Parts is a mix of *BasicLit (string segments) and arbitrary Expr (interpolated expressions).
+	InterpolatedString struct {
+		Parts []Expr
+		expr
+	}
+
 	// [Len]Elem
 	ArrayType struct {
 		// TODO(gri) consider using Name{"..."} instead of nil (permits attaching of comments)
